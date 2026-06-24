@@ -24,18 +24,19 @@ export default function App() {
     const [title, setTitle] = useState('Configuration Items')
 
     const [selectedCi, setSelectedCi] = useState<{ className: string; sysId: string } | null>(null)
+    const [activeOnly, setActiveOnly] = useState(false)
     const [links, setLinks] = useState<{ jira?: string; confluence?: string }>({})
     const [error, setError] = useState<string | null>(null)
 
-    // Load the class hierarchy once.
+    // Load (and reload) the class hierarchy — counts respect the active filter.
     useEffect(() => {
         setTreeLoading(true)
         service
-            .getClassHierarchy()
+            .getClassHierarchy(activeOnly ? 'operational_status=1' : undefined)
             .then(setRoots)
             .catch((e) => setError('Failed to load class hierarchy: ' + (e.message || e)))
             .finally(() => setTreeLoading(false))
-    }, [service])
+    }, [service, activeOnly])
 
     // Load integration base URLs (Jira/Confluence) from system properties once.
     // A still-default placeholder value counts as "not configured".
@@ -49,7 +50,7 @@ export default function App() {
             .catch(() => setLinks({}))
     }, [service])
 
-    // Browse a class (clears any active search).
+    // Browse a class (clears any active search). Honors the active filter.
     const browseClass = async (className: string) => {
         setQuery('')
         setSelectedClass(className)
@@ -57,7 +58,11 @@ export default function App() {
         setRowsLoading(true)
         setError(null)
         try {
-            const data = await service.listByClass(className, { fields: RESULT_FIELDS, limit: 200 })
+            const data = await service.listByClass(className, {
+                fields: RESULT_FIELDS,
+                limit: 200,
+                query: activeOnly ? 'operational_status=1' : undefined,
+            })
             setRows(data)
         } catch (e: any) {
             setError('Failed to list ' + className + ': ' + (e.message || e))
@@ -67,28 +72,44 @@ export default function App() {
         }
     }
 
-    // Debounced global search (clears any active class selection).
+    // Run a global search (clears any active class selection). Honors the active filter.
+    const runSearch = async (term: string) => {
+        setSelectedClass(null)
+        setTitle(`Search: "${term}"`)
+        setRowsLoading(true)
+        setError(null)
+        try {
+            const data = await service.searchCIs(term, { limit: 100, activeOnly })
+            setRows(data)
+        } catch (e: any) {
+            setError('Search failed: ' + (e.message || e))
+            setRows([])
+        } finally {
+            setRowsLoading(false)
+        }
+    }
+
+    // Debounced search input.
     const searchTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
     const onSearchChange = (term: string) => {
         setQuery(term)
         if (searchTimer.current) clearTimeout(searchTimer.current)
         if (term.trim().length < 2) return
-        searchTimer.current = setTimeout(async () => {
-            setSelectedClass(null)
-            setTitle(`Search: "${term}"`)
-            setRowsLoading(true)
-            setError(null)
-            try {
-                const data = await service.searchCIs(term, { limit: 100 })
-                setRows(data)
-            } catch (e: any) {
-                setError('Search failed: ' + (e.message || e))
-                setRows([])
-            } finally {
-                setRowsLoading(false)
-            }
-        }, 300)
+        searchTimer.current = setTimeout(() => void runSearch(term), 300)
     }
+
+    // When the active filter toggles, re-run whichever view is showing so the
+    // list matches the (now refiltered) tree counts.
+    const mounted = useRef(false)
+    useEffect(() => {
+        if (!mounted.current) {
+            mounted.current = true
+            return
+        }
+        if (selectedClass) void browseClass(selectedClass)
+        else if (query.trim().length >= 2) void runSearch(query)
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [activeOnly])
 
     return (
         <div className="cmdb-app">
@@ -113,7 +134,13 @@ export default function App() {
                 {treeLoading ? (
                     <aside className="cmdb-tree-loading">Loading classes…</aside>
                 ) : (
-                    <ClassTree roots={roots} selected={selectedClass} onSelect={browseClass} />
+                    <ClassTree
+                        roots={roots}
+                        selected={selectedClass}
+                        onSelect={browseClass}
+                        activeOnly={activeOnly}
+                        onToggleActive={setActiveOnly}
+                    />
                 )}
 
                 <main className="cmdb-main">

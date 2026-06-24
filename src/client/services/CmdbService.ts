@@ -24,11 +24,12 @@ export interface CiRelation {
 }
 
 /** Response shape of GET /api/now/cmdb/instance/{class}/{sys_id}.
- *  NOTE: unlike the Table/Stats calls, the CMDB Instance API does NOT honor
- *  sysparm_display_value — `attributes` values are raw strings, not
- *  { value, display_value } objects. (Verified against dev380385.) */
+ *  NOTE: `attributes` is mixed — scalar fields come back as plain strings, but
+ *  POPULATED reference fields come back as { value, display_value, link }
+ *  objects. Always read attribute values through dv() (display.ts), never
+ *  render them raw (React error #31). (Verified against dev380385.) */
 export interface CiInstance {
-    attributes: Record<string, string>
+    attributes: Record<string, string | DisplayValue>
     inbound_relations: CiRelation[]
     outbound_relations: CiRelation[]
 }
@@ -103,16 +104,18 @@ export class CmdbService {
      * @param opts.fields   columns to match against (default: name, IP, FQDN, serial, asset tag)
      * @param opts.limit    max rows (keep small for "instant" feel; default 25)
      */
-    async searchCIs(term: string, opts: { fields?: string[]; limit?: number } = {}) {
+    async searchCIs(term: string, opts: { fields?: string[]; limit?: number; activeOnly?: boolean } = {}) {
         const fields = opts.fields ?? ['name', 'ip_address', 'fqdn', 'serial_number', 'asset_tag']
-        // Build an OR'd encoded query: nameLIKEterm^ORip_addressLIKEterm^OR...
-        const encoded = fields.map((f, i) => `${i === 0 ? '' : 'OR'}${f}LIKE${term}`).join('^')
+        // Build an OR'd match group, then AND the active filter so it applies to
+        // the whole group: (nameLIKE..^OR..)^operational_status=1.
+        const matchGroup = fields.map((f, i) => `${i === 0 ? '' : 'OR'}${f}LIKE${term}`).join('^')
+        const activeFilter = opts.activeOnly ? '^operational_status=1' : ''
 
         const params = new URLSearchParams({
             sysparm_display_value: 'all',
             sysparm_fields: 'sys_id,name,sys_class_name,ip_address,sys_updated_on',
             sysparm_limit: String(opts.limit ?? 25),
-            sysparm_query: `${encoded}^ORDERBYname`,
+            sysparm_query: `${matchGroup}${activeFilter}^ORDERBYname`,
         })
 
         const { result } = await this.request(`/api/now/table/${this.baseTable}?${params}`)
@@ -266,9 +269,12 @@ export class CmdbService {
      * querying a parent table returns subclass rows).
      *
      * Returns the root nodes (normally just cmdb_ci).
+     *
+     * @param query optional encoded query applied to the count (e.g.
+     *              'operational_status=1' to count only active CIs).
      */
-    async getClassHierarchy(): Promise<ClassNode[]> {
-        const buckets = await this.getCounts(this.baseTable, { groupBy: ['sys_class_name'] })
+    async getClassHierarchy(query?: string): Promise<ClassNode[]> {
+        const buckets = await this.getCounts(this.baseTable, { groupBy: ['sys_class_name'], query })
 
         // Exact leaf counts keyed by class name.
         const ownCount: Record<string, number> = {}

@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react'
 import type { CmdbService, CiInstance, CiRelation } from '../services/CmdbService'
-import { parseInstanceLink, jiraSearchUrl, confluenceSearchUrl } from '../services/display'
+import { dv, parseInstanceLink, jiraSearchUrl, confluenceSearchUrl } from '../services/display'
 import './CiDetail.css'
 
 interface CiDetailProps {
@@ -57,13 +57,16 @@ export default function CiDetail({
         }
     }, [service, className, sysId])
 
+    // Scalar attributes come back as strings, but populated reference fields come
+    // back as { value, display_value, link } objects — always render via dv().
     const attrs = ci?.attributes ?? {}
-    const shown = KEY_ATTRS.filter((k) => attrs[k] != null && attrs[k] !== '')
+    const ciName = dv(attrs.name)
+    const shown = KEY_ATTRS.filter((k) => dv(attrs[k]) !== '')
 
     return (
         <div className="ci-detail">
             <div className="ci-detail-head">
-                <div className="ci-detail-title">{loading ? 'Loading…' : attrs.name || 'CI Detail'}</div>
+                <div className="ci-detail-title">{loading ? 'Loading…' : ciName || 'CI Detail'}</div>
                 <button className="ci-detail-close" onClick={onClose} title="Close">
                     ✕
                 </button>
@@ -75,13 +78,13 @@ export default function CiDetail({
                 <div className="ci-detail-body">
                     <div className="ci-detail-class">{className}</div>
 
-                    {attrs.name && (
+                    {ciName && (
                         <div className="ci-actions">
                             <button
                                 className="ci-action-btn"
                                 disabled={!jiraBase}
                                 title={jiraBase ? 'Search Jira for this CI' : 'Set ibworks.jira.base_url'}
-                                onClick={() => window.open(jiraSearchUrl(jiraBase!, attrs.name), '_blank', 'noopener')}
+                                onClick={() => window.open(jiraSearchUrl(jiraBase!, ciName), '_blank', 'noopener')}
                             >
                                 Search in Jira
                             </button>
@@ -90,7 +93,7 @@ export default function CiDetail({
                                 disabled={!confluenceBase}
                                 title={confluenceBase ? 'Search Confluence for this CI' : 'Set ibworks.confluence.base_url'}
                                 onClick={() =>
-                                    window.open(confluenceSearchUrl(confluenceBase!, attrs.name), '_blank', 'noopener')
+                                    window.open(confluenceSearchUrl(confluenceBase!, ciName), '_blank', 'noopener')
                                 }
                             >
                                 Search in Confluence
@@ -104,7 +107,7 @@ export default function CiDetail({
                             {shown.map((k) => (
                                 <React.Fragment key={k}>
                                     <dt>{k}</dt>
-                                    <dd>{attrs[k]}</dd>
+                                    <dd>{dv(attrs[k])}</dd>
                                 </React.Fragment>
                             ))}
                         </dl>

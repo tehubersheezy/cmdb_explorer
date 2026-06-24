@@ -6,6 +6,8 @@ interface ClassTreeProps {
     roots: ClassNode[]
     selected: string | null
     onSelect: (className: string) => void
+    activeOnly: boolean
+    onToggleActive: (value: boolean) => void
 }
 
 /**
@@ -13,7 +15,7 @@ interface ClassTreeProps {
  * collapsible; the "Hide empty" toggle prunes any branch whose inclusive count
  * is 0 (entire empty subtrees disappear, not just leaves).
  */
-export default function ClassTree({ roots, selected, onSelect }: ClassTreeProps) {
+export default function ClassTree({ roots, selected, onSelect, activeOnly, onToggleActive }: ClassTreeProps) {
     const [hideEmpty, setHideEmpty] = useState(true)
     const [filter, setFilter] = useState('')
 
@@ -60,6 +62,14 @@ export default function ClassTree({ roots, selected, onSelect }: ClassTreeProps)
                 <label className="ct-toggle">
                     <input type="checkbox" checked={hideEmpty} onChange={(e) => setHideEmpty(e.target.checked)} />
                     Hide empty CI tables
+                </label>
+                <label className="ct-toggle">
+                    <input
+                        type="checkbox"
+                        checked={activeOnly}
+                        onChange={(e) => onToggleActive(e.target.checked)}
+                    />
+                    Active only (operational)
                 </label>
             </div>
             <div className="class-tree-body">
