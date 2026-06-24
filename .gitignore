@@ -1,0 +1,12 @@
+.DS_Store
+.now/
+dist/
+node_modules/
+target/
+*.tsbuildinfo
+.jest_cache
+# verification artifacts / editor / tooling
+.playwright-mcp/
+.vscode/
+cmdb-explorer-*.png
+cmdb-jira-confluence.png

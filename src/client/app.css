@@ -1,0 +1,89 @@
+html,
+body,
+#root {
+    height: 100%;
+    margin: 0;
+}
+
+.cmdb-app {
+    display: flex;
+    flex-direction: column;
+    height: 100vh;
+    font-family: "Helvetica Neue", Arial, sans-serif;
+    color: #2c3e50;
+}
+
+.cmdb-header {
+    display: flex;
+    align-items: center;
+    gap: 24px;
+    padding: 12px 20px;
+    border-bottom: 1px solid #e3e6eb;
+    background: #fff;
+    flex: 0 0 auto;
+}
+
+.cmdb-header h1 {
+    margin: 0;
+    font-size: 18px;
+    color: #2c3e50;
+    white-space: nowrap;
+}
+
+.cmdb-search {
+    flex: 1;
+    max-width: 520px;
+    padding: 8px 12px;
+    border: 1px solid #d4d9e0;
+    border-radius: 6px;
+    font-size: 14px;
+    outline: none;
+}
+
+.cmdb-search:focus {
+    border-color: #4a90e2;
+    box-shadow: 0 0 0 2px rgba(74, 144, 226, 0.15);
+}
+
+.cmdb-error {
+    background: #ffebee;
+    color: #d32f2f;
+    padding: 10px 20px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    border-bottom: 1px solid #f5c6c6;
+    flex: 0 0 auto;
+}
+
+.cmdb-error button {
+    background: none;
+    border: none;
+    color: #d32f2f;
+    cursor: pointer;
+    font-weight: bold;
+    text-decoration: underline;
+}
+
+.cmdb-body {
+    display: flex;
+    flex: 1;
+    min-height: 0;
+}
+
+.cmdb-main {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+    background: #fff;
+}
+
+.cmdb-tree-loading {
+    width: 300px;
+    flex: 0 0 300px;
+    border-right: 1px solid #e3e6eb;
+    padding: 20px;
+    color: #8a94a6;
+    background: #fafbfc;
+}

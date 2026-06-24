@@ -1,0 +1,6 @@
+{
+  "scope": "global",
+  "scopeId": "27050d320b1f48e2844b64fff01f980c",
+  "name": "CMDB Explorer",
+  "tsconfigPath": "./src/server/tsconfig.json"
+}
