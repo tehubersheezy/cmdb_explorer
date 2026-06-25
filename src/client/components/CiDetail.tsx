@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react'
 import type { CmdbService, CiInstance, CiRelation } from '../services/CmdbService'
-import { dv, parseInstanceLink, jiraSearchUrl, confluenceSearchUrl } from '../services/display'
+import { dv, parseInstanceLink, jiraSearchUrl, confluenceSearchUrl, type Deployment } from '../services/display'
+import { AtlassianIcon, ConfluenceIcon } from './BrandIcons'
 import './CiDetail.css'
 
 interface CiDetailProps {
@@ -9,6 +10,8 @@ interface CiDetailProps {
     sysId: string
     jiraBase?: string
     confluenceBase?: string
+    jiraDeployment?: Deployment
+    confluenceDeployment?: Deployment
     onNavigate: (className: string, sysId: string) => void
     onClose: () => void
 }
@@ -35,6 +38,8 @@ export default function CiDetail({
     sysId,
     jiraBase,
     confluenceBase,
+    jiraDeployment = 'dc',
+    confluenceDeployment = 'dc',
     onNavigate,
     onClose,
 }: CiDetailProps) {
@@ -84,8 +89,11 @@ export default function CiDetail({
                                 className="ci-action-btn"
                                 disabled={!jiraBase}
                                 title={jiraBase ? 'Search Jira for this CI' : 'Set ibworks.jira.base_url'}
-                                onClick={() => window.open(jiraSearchUrl(jiraBase!, ciName), '_blank', 'noopener')}
+                                onClick={() =>
+                                    window.open(jiraSearchUrl(jiraBase!, ciName, jiraDeployment), '_blank', 'noopener')
+                                }
                             >
+                                <AtlassianIcon className="ci-action-icon" />
                                 Search in Jira
                             </button>
                             <button
@@ -93,9 +101,14 @@ export default function CiDetail({
                                 disabled={!confluenceBase}
                                 title={confluenceBase ? 'Search Confluence for this CI' : 'Set ibworks.confluence.base_url'}
                                 onClick={() =>
-                                    window.open(confluenceSearchUrl(confluenceBase!, ciName), '_blank', 'noopener')
+                                    window.open(
+                                        confluenceSearchUrl(confluenceBase!, ciName, confluenceDeployment),
+                                        '_blank',
+                                        'noopener',
+                                    )
                                 }
                             >
+                                <ConfluenceIcon className="ci-action-icon" />
                                 Search in Confluence
                             </button>
                         </div>

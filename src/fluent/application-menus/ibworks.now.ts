@@ -1,28 +1,24 @@
 import '@servicenow/sdk/global'
-import { ApplicationMenu, Record } from '@servicenow/sdk/core'
+import { Record } from '@servicenow/sdk/core'
 
-// Top-level "IBWorks" section in the application navigator. order=75 places it
-// second: just after "Self-Service" (order 50) and ahead of the order=100 cluster.
-const ibworksMenu = ApplicationMenu({
-    $id: Now.ID['ibworks-menu'],
-    title: 'IBWorks',
-    name: 'IBWorks',
-    hint: 'IBWorks application suite',
-    description: 'IBWorks application suite',
-    order: 75,
-    active: true,
-})
+// We no longer ship our own "IBWorks" application menu. The CMDB Explorer module
+// hangs directly off the out-of-box "Self-Service" navigator section (the
+// order=50 menu) and is restricted to the itil role.
+//
+// sys_app_module.roles is a `user_roles` field (stored as comma-separated role
+// names on the instance); the Fluent type takes an array of role names.
+const SELF_SERVICE_MENU = '08771d0cc0a8016401f604303b94b999'
 
-// Module linking to the CMDB Explorer UI page (cmdb_explorer.do).
 Record({
     $id: Now.ID['ibworks-cmdb-explorer-module'],
     table: 'sys_app_module',
     data: {
         title: 'CMDB Explorer',
-        application: ibworksMenu,
+        application: SELF_SERVICE_MENU,
         link_type: 'DIRECT',
         query: 'cmdb_explorer.do',
         hint: 'Open the CMDB Explorer',
+        roles: ['itil'],
         active: true,
         order: 100,
     },

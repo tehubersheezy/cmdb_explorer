@@ -7,10 +7,15 @@
 
 .ci-results-head {
     display: flex;
-    justify-content: space-between;
-    align-items: baseline;
+    justify-content: flex-start;
+    align-items: center;
+    gap: 10px;
     padding: 10px 16px;
     border-bottom: 1px solid #e3e6eb;
+}
+
+.ci-results-actions {
+    margin-left: auto;
 }
 
 .ci-results-title {
@@ -70,6 +75,24 @@
 
 .ci-row-selected {
     background: #dbeafe !important;
+}
+
+/* Checkbox column — narrow, centered, and not a click target for row open. */
+.ci-check-col {
+    width: 1%;
+    text-align: center;
+    padding-left: 12px;
+    padding-right: 4px;
+    cursor: default;
+}
+
+.ci-check-col input {
+    cursor: pointer;
+    vertical-align: middle;
+}
+
+.ci-row-checked {
+    background: #eef3fb;
 }
 
 .ci-name {

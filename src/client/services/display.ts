@@ -16,16 +16,39 @@ export function raw(field: any): string {
     return String(field)
 }
 
-/** Build a Jira issue-search URL for a CI name using JQL. Searches all text
- *  fields, most-recently-updated first. */
-export function jiraSearchUrl(base: string, ciName: string): string {
-    const jql = `text ~ "${ciName.replace(/"/g, '\\"')}" ORDER BY updated DESC`
-    return `${base.replace(/\/$/, '')}/issues/?jql=${encodeURIComponent(jql)}`
+/** Atlassian deployment type — changes which search-URL format we build. */
+export type Deployment = 'cloud' | 'dc'
+
+/** Normalize a system-property deployment value. Anything that isn't exactly
+ *  "cloud" (case/space-insensitive) is treated as Data Center / Server. */
+export function parseDeployment(value?: string): Deployment {
+    return String(value ?? '').trim().toLowerCase() === 'cloud' ? 'cloud' : 'dc'
 }
 
-/** Build a Confluence site-search URL for a CI name. */
-export function confluenceSearchUrl(base: string, ciName: string): string {
-    return `${base.replace(/\/$/, '')}/search?text=${encodeURIComponent(ciName)}`
+/** Build a Jira issue-search URL for a CI name using JQL. Searches all text
+ *  fields, most-recently-updated first.
+ *   - cloud: modern issue navigator   /issues/?jql=
+ *   - dc:    classic issue navigator   /secure/IssueNavigator.jspa?jqlQuery= */
+export function jiraSearchUrl(base: string, ciName: string, deployment: Deployment = 'dc'): string {
+    const jql = `text ~ "${ciName.replace(/"/g, '\\"')}" ORDER BY updated DESC`
+    const root = base.replace(/\/$/, '')
+    return deployment === 'cloud'
+        ? `${root}/issues/?jql=${encodeURIComponent(jql)}`
+        : `${root}/secure/IssueNavigator.jspa?reset=true&jqlQuery=${encodeURIComponent(jql)}`
+}
+
+/** Build a Confluence advanced-search URL for a CI name using CQL. Matches the
+ *  name in a page title or anywhere in its text.
+ *   - cloud: advanced-search page      /search?cql=
+ *   - dc:    legacy advanced search     /dosearchsite.action?cql=
+ *  (For cloud, `base` is expected to include the /wiki context path.) */
+export function confluenceSearchUrl(base: string, ciName: string, deployment: Deployment = 'dc'): string {
+    const term = ciName.replace(/\\/g, '\\\\').replace(/"/g, '\\"')
+    const cql = `title ~ "${term}" OR text ~ "${term}"`
+    const root = base.replace(/\/$/, '')
+    return deployment === 'cloud'
+        ? `${root}/search?cql=${encodeURIComponent(cql)}`
+        : `${root}/dosearchsite.action?cql=${encodeURIComponent(cql)}`
 }
 
 /** Parse a CMDB relation target.link into { className, sysId }.

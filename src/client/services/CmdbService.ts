@@ -49,6 +49,13 @@ export interface ClassNode {
     children: ClassNode[]
 }
 
+/** A selectable attribute (column) of a CMDB class, from the Meta API. */
+export interface ClassAttribute {
+    name: string // the `element` (column name), e.g. "ip_address"
+    label: string // human label, e.g. "IP Address"
+    type: string // e.g. "string", "reference", "integer"
+}
+
 /**
  * Thin client wrapper over the three ServiceNow REST families a CMDB explorer
  * needs:
@@ -64,7 +71,33 @@ export class CmdbService {
     /** Base CI table. Every CI, regardless of class, is queryable here. */
     private readonly baseTable = 'cmdb_ci'
 
+    /** Per-class cache of selectable attributes (column picker). */
+    private metaAttrCache = new Map<string, ClassAttribute[]>()
+
+    /** Per-class cache of default-list-view columns. */
+    private listColCache = new Map<string, string[]>()
+
+    /** Lazily-built { table -> parent table } map from the static schema. */
+    private parentMap?: Record<string, string>
+
     // ---- internal -------------------------------------------------------
+
+    /** The class chain from `className` up to the root (cmdb_ci), nearest first. */
+    private classChain(className: string): string[] {
+        if (!this.parentMap) {
+            this.parentMap = {}
+            for (const c of CLASS_SCHEMA) this.parentMap[c.n] = c.p || ''
+        }
+        const chain: string[] = []
+        const seen = new Set<string>()
+        let cur: string | undefined = className
+        while (cur && !seen.has(cur)) {
+            seen.add(cur)
+            chain.push(cur)
+            cur = this.parentMap[cur]
+        }
+        return chain
+    }
 
     /**
      * Single fetch helper shared by all three API families. Adds the user
@@ -122,27 +155,120 @@ export class CmdbService {
         return result || []
     }
 
-    /** Open incidents grouped by CI — a join the CMDB API can't do. Returns a
-     *  { [ciSysId]: openCount } map for overlaying health onto search results. */
-    async openIncidentCountsByCi(): Promise<Record<string, number>> {
-        const buckets = await this.getCounts('incident', {
-            groupBy: ['cmdb_ci'],
-            query: 'active=true^cmdb_ciISNOTEMPTY',
+    // ---- tasks (Table API) ---------------------------------------------
+
+    /**
+     * Type-ahead over the base `task` table for the "Add to task" picker. Because
+     * task subclasses (incident, change_request, problem, sc_task, change_task…)
+     * all extend `task`, one query finds any of them. Matches the number or short
+     * description, most-recently-updated first.
+     */
+    async searchTasks(term: string, opts: { limit?: number } = {}) {
+        const params = new URLSearchParams({
+            sysparm_display_value: 'all',
+            sysparm_fields: 'sys_id,number,short_description,sys_class_name,state',
+            sysparm_limit: String(opts.limit ?? 25),
+            sysparm_query: `numberLIKE${term}^ORshort_descriptionLIKE${term}^ORDERBYDESCsys_updated_on`,
         })
-        const map: Record<string, number> = {}
-        for (const b of buckets) {
-            const ci = b.groupby_fields[0]?.value
-            if (ci) map[ci] = Number(b.stats.count ?? 0)
+        const { result } = await this.request(`/api/now/table/task?${params}`)
+        return result || []
+    }
+
+    /**
+     * Link CIs to a task as Affected CIs by inserting `task_ci` rows (task +
+     * ci_item). One POST per CI; resolves once all settle. Returns the count
+     * inserted. (No dedup yet — a CI already on the task will get a second row.)
+     */
+    async addCisToTask(taskSysId: string, ciSysIds: string[]): Promise<number> {
+        const inserts = ciSysIds.map((ci) =>
+            this.request('/api/now/table/task_ci', {
+                method: 'POST',
+                body: JSON.stringify({ task: taskSysId, ci_item: ci }),
+            }),
+        )
+        await Promise.all(inserts)
+        return ciSysIds.length
+    }
+
+    /**
+     * The CIs already linked to a task (its Affected CIs). Reads task_ci and
+     * dot-walks ci_item for the CI name + class. Used by the "Existing affected
+     * CIs" tab and to flag selected CIs that are already on the task.
+     */
+    async getTaskCis(taskSysId: string): Promise<Array<{ sysId: string; name: string; className: string }>> {
+        const params = new URLSearchParams({
+            sysparm_display_value: 'all',
+            sysparm_fields: 'ci_item,ci_item.sys_class_name',
+            sysparm_query: `task=${taskSysId}`,
+            sysparm_limit: '1000',
+        })
+        const { result } = await this.request(`/api/now/table/task_ci?${params}`)
+        return (result || [])
+            .map((r: any) => ({
+                sysId: r.ci_item?.value ?? '',
+                name: r.ci_item?.display_value || r.ci_item?.value || '',
+                className: r['ci_item.sys_class_name']?.value || '',
+            }))
+            .filter((c: { sysId: string }) => c.sysId)
+    }
+
+    /**
+     * Link many CIs to a task in a SINGLE HTTP call via the Batch REST API
+     * (/api/now/v1/batch). Each task_ci insert becomes one sub-request (its body
+     * base64-encoded, as the batch API requires); the platform runs them
+     * server-side and returns a per-request status. Returns counts of inserted
+     * vs failed so the caller can report partial success.
+     *
+     * Pair this with an AMB record-watcher subscription on task_ci for live
+     * progress: subscribe first, then call this.
+     */
+    async addCisToTaskBatch(taskSysId: string, ciSysIds: string[]): Promise<{ ok: number; failed: number }> {
+        if (!ciSysIds.length) return { ok: 0, failed: 0 }
+        const b64 = (s: string) => btoa(unescape(encodeURIComponent(s)))
+
+        const rest_requests = ciSysIds.map((ci, i) => ({
+            id: String(i),
+            method: 'POST',
+            url: '/api/now/table/task_ci',
+            headers: [
+                { name: 'Content-Type', value: 'application/json' },
+                { name: 'Accept', value: 'application/json' },
+            ],
+            body: b64(JSON.stringify({ task: taskSysId, ci_item: ci })),
+        }))
+
+        const resp = await this.request('/api/now/v1/batch', {
+            method: 'POST',
+            body: JSON.stringify({ batch_request_id: '1', rest_requests }),
+        })
+
+        const serviced: Array<{ status_code?: number }> = resp?.serviced_requests ?? []
+        const unserviced: string[] = resp?.unserviced_requests ?? []
+        let ok = 0
+        for (const r of serviced) {
+            const code = Number(r.status_code ?? 0)
+            if (code >= 200 && code < 300) ok++
         }
-        return map
+        const failed = ciSysIds.length - ok
+        // unserviced are also failures; folded into `failed` via the count above.
+        void unserviced
+        return { ok, failed }
     }
 
     // ---- CMDB Instance API ---------------------------------------------
 
     /**
-     * Class-scoped CI list. Unlike the Table API on cmdb_ci, this returns the
-     * correct leaf-table fields for the class and is the intended path for
-     * browsing within one class.
+     * Class-scoped CI list via the Table API on the LEAF class table.
+     *
+     * Why not the CMDB Instance list endpoint (/api/now/cmdb/instance/{class})?
+     * Despite its name, that list form returns only { sys_id, name } and ignores
+     * sysparm_fields — it's a summary picker feed, not a column source. (Verified
+     * against dev380385.) Querying the leaf table directly (e.g.
+     * /api/now/table/cmdb_ci_linux_server) returns the class's own leaf columns
+     * AND honors sysparm_fields, which the column picker needs. Table inheritance
+     * means a parent table still returns its subclass rows, so this works at any
+     * level of the hierarchy. (The CMDB Instance *detail* endpoint is still the
+     * right call for one CI + its relationships — see getCI.)
      *
      * @param className  e.g. "cmdb_ci_linux_server"
      * @param opts.query   ServiceNow encoded query (WHERE)
@@ -154,12 +280,15 @@ export class CmdbService {
         opts: { query?: string; fields?: string[]; limit?: number; offset?: number } = {},
     ) {
         const params = new URLSearchParams({ sysparm_display_value: 'all' })
-        if (opts.query) params.set('sysparm_query', opts.query)
+        // Order by name unless the caller already specified an ORDERBY.
+        const query = opts.query
+        const ordered = !query ? 'ORDERBYname' : /ORDERBY/i.test(query) ? query : `${query}^ORDERBYname`
+        params.set('sysparm_query', ordered)
         if (opts.fields) params.set('sysparm_fields', opts.fields.join(','))
         if (opts.limit != null) params.set('sysparm_limit', String(opts.limit))
         if (opts.offset != null) params.set('sysparm_offset', String(opts.offset))
 
-        const { result } = await this.request(`/api/now/cmdb/instance/${className}?${params}`)
+        const { result } = await this.request(`/api/now/table/${className}?${params}`)
         return result || []
     }
 
@@ -185,6 +314,90 @@ export class CmdbService {
     async getClassMeta(className: string) {
         const { result } = await this.request(`/api/now/cmdb/meta/${className}`)
         return result
+    }
+
+    /**
+     * Selectable attributes (columns) of a class, derived from the Meta API's
+     * `result.attributes`. Drives the column picker; results are cached per
+     * class because the metadata changes rarely and the Meta payload is large.
+     *
+     * @param className  e.g. "cmdb_ci_linux_server"
+     */
+    async getClassAttributes(className: string): Promise<ClassAttribute[]> {
+        const cached = this.metaAttrCache.get(className)
+        if (cached) return cached
+
+        const result = await this.getClassMeta(className)
+        const attributes = Array.isArray(result?.attributes) ? result.attributes : []
+        const mapped = attributes
+            .map((a: any) => ({ name: a.element, label: a.label || a.element, type: a.type }))
+            .filter((a: ClassAttribute) => a.name)
+            .sort((a: ClassAttribute, b: ClassAttribute) => a.label.localeCompare(b.label))
+
+        this.metaAttrCache.set(className, mapped)
+        return mapped
+    }
+
+    /**
+     * The table's DEFAULT LIST VIEW columns — the same column set users see in
+     * the native list UI. Read from sys_ui_list (the list definition) joined to
+     * sys_ui_list_element (its ordered columns). Used as the column-picker
+     * default so the explorer matches platform expectations.
+     *
+     * The "table's own default list" is the one with sys_user EMPTY (not a
+     * personal list), parent EMPTY (not a related list), and the Default view —
+     * which an instance stores either as an empty `view` or the literal
+     * "Default view" sentinel, so we accept both. If the leaf class defines no
+     * list, we walk UP the class chain and use the nearest ancestor that does
+     * (matching how the platform inherits list layouts). Dot-walked columns
+     * (e.g. "location.name") are dropped so every default is also a pickable
+     * attribute. Returns [] if nothing in the chain defines a list — the caller
+     * then falls back to its own default set. Cached per class.
+     */
+    async getDefaultListColumns(className: string): Promise<string[]> {
+        const cached = this.listColCache.get(className)
+        if (cached) return cached
+
+        const chain = this.classChain(className)
+        // One query for every candidate list in the chain (Table API default
+        // display value = false, so these come back as plain strings).
+        const listParams = new URLSearchParams({
+            sysparm_fields: 'sys_id,name,view',
+            sysparm_query: `nameIN${chain.join(',')}^sys_userISEMPTY^parentISEMPTY`,
+            sysparm_limit: '500',
+        })
+        const { result: lists } = await this.request(`/api/now/table/sys_ui_list?${listParams}`)
+
+        // `view` is a reference field, so the Table API returns it as a
+        // { value, link } object even without display values — read .value.
+        const viewVal = (v: any): string => (v && typeof v === 'object' ? (v.value ?? '') : (v ?? ''))
+        const isDefaultView = (v: any) => viewVal(v) === '' || viewVal(v) === 'Default view'
+        // Pick the nearest class in the chain that has a default-view list.
+        let listId = ''
+        for (const table of chain) {
+            const hit = (lists || []).find((l: any) => l.name === table && isDefaultView(l.view))
+            if (hit) {
+                listId = hit.sys_id
+                break
+            }
+        }
+        if (!listId) {
+            this.listColCache.set(className, [])
+            return []
+        }
+
+        const elParams = new URLSearchParams({
+            sysparm_fields: 'element',
+            sysparm_query: `list_id=${listId}^ORDERBYposition`,
+            sysparm_limit: '200',
+        })
+        const { result: els } = await this.request(`/api/now/table/sys_ui_list_element?${elParams}`)
+        const cols: string[] = (els || [])
+            .map((e: any) => e.element)
+            .filter((c: string) => c && !c.includes('.'))
+
+        this.listColCache.set(className, cols)
+        return cols
     }
 
     // ---- Stats / Aggregate API -----------------------------------------

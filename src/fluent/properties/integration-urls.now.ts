@@ -29,3 +29,32 @@ Property({
         write: ['admin'],
     },
 })
+
+// Deployment type per tool. Controls which search-URL format the client builds:
+//   Jira       — dc: /secure/IssueNavigator.jspa?jqlQuery=… ; cloud: /issues/?jql=…
+//   Confluence — dc: /dosearchsite.action?cql=…             ; cloud: /search?cql=…
+// Default "dc" (Data Center / Server). Any value other than "cloud" is treated as dc.
+
+Property({
+    $id: Now.ID['ibworks-jira-type'],
+    name: 'ibworks.jira.type',
+    type: 'string',
+    value: 'dc',
+    description: 'Jira deployment type for the "Search in Jira" action: "dc" (Data Center/Server) or "cloud".',
+    roles: {
+        read: [],
+        write: ['admin'],
+    },
+})
+
+Property({
+    $id: Now.ID['ibworks-confluence-type'],
+    name: 'ibworks.confluence.type',
+    type: 'string',
+    value: 'dc',
+    description: 'Confluence deployment type for the "Search in Confluence" action: "dc" (Data Center/Server) or "cloud".',
+    roles: {
+        read: [],
+        write: ['admin'],
+    },
+})

@@ -74,6 +74,10 @@
 
 .ci-action-btn {
     flex: 1;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
     padding: 7px 10px;
     font-size: 12px;
     font-weight: 600;
@@ -82,6 +86,17 @@
     border: 1px solid #c9dcf5;
     border-radius: 5px;
     cursor: pointer;
+}
+
+/* Brand glyph inherits the button's text color via currentColor, so it tracks
+   the hover/disabled states automatically. */
+.ci-action-icon {
+    flex: none;
+    color: #0052cc;
+}
+
+.ci-action-btn:disabled .ci-action-icon {
+    color: inherit;
 }
 
 .ci-action-btn:hover:not(:disabled) {

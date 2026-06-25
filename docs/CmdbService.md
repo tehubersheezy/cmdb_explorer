@@ -44,8 +44,14 @@ const hits = await cmdb.searchCIs('web01', { limit: 25 })
 
 ### `listByClass(className, opts?)` — browse within one class
 
-Class-scoped list via the **CMDB Instance API**. Returns the correct leaf-table
-fields for the class (unlike a base-table Table API query).
+Class-scoped list via the **Table API on the leaf class table**
+(`/api/now/table/{className}`). Returns the class's own leaf columns and honors
+`sysparm_fields` — which the column picker needs.
+
+> **Not** the CMDB Instance *list* endpoint (`/api/now/cmdb/instance/{class}`):
+> despite its name it returns only `{ sys_id, name }` and ignores
+> `sysparm_fields`. The Instance API is still the right call for one CI **+ its
+> relationships** (`getCI`), just not for column lists.
 
 ```ts
 const linux = await cmdb.listByClass('cmdb_ci_linux_server', {
@@ -115,24 +121,18 @@ Options map directly onto `sysparm_*`:
 
 - **`ciCountsByClass(query?)`** → `[{ className, label, count }]`, biggest first.
   Built for the filter-chip badges.
-- **`openIncidentCountsByCi()`** → `{ [ciSysId]: openCount }` map. Groups active
-  incidents by `cmdb_ci` (the join the CMDB API can't do) for the health overlay.
 
-## Putting it together — search results with health + class chips
+## Putting it together — search results with class chips
 
 ```ts
 const cmdb = new CmdbService()
 
-const [hits, chips, health] = await Promise.all([
+const [hits, chips] = await Promise.all([
     cmdb.searchCIs('prod'),
-    cmdb.ciCountsByClass(),        // chip badges
-    cmdb.openIncidentCountsByCi(), // overlay
+    cmdb.ciCountsByClass(), // chip badges
 ])
 
-const rows = hits.map((ci) => ({
-    ...ci,
-    openIncidents: health[ci.sys_id.value] ?? 0, // color "what's on fire"
-}))
+const rows = hits.map((ci) => ({ ...ci }))
 ```
 
 ## Error handling

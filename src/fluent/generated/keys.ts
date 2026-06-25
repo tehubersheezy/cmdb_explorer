@@ -17,13 +17,22 @@ declare global {
                         table: 'sys_properties'
                         id: 'd31db1c124fe43b69b2abc7dbd34db00'
                     }
+                    'ibworks-confluence-type': {
+                        table: 'sys_properties'
+                        id: '193a5bbde555414e9015557fecc526cb'
+                    }
                     'ibworks-jira-base-url': {
                         table: 'sys_properties'
                         id: 'f2e5eee5ebe84da29f593cc438ecbaae'
                     }
+                    'ibworks-jira-type': {
+                        table: 'sys_properties'
+                        id: '954009861b0e43bf9cd17e7f373650ef'
+                    }
                     'ibworks-menu': {
                         table: 'sys_app_application'
                         id: 'fe9de2e7303c4da08279acf675cfbc8a'
+                        deleted: true
                     }
                     package_json: {
                         table: 'sys_module'

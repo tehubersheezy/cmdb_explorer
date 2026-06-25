@@ -1,0 +1,104 @@
+.colpicker {
+    position: relative;
+    display: inline-block;
+}
+
+.colpicker-btn {
+    padding: 7px 12px;
+    font-size: 12px;
+    font-weight: 600;
+    color: #5a6472;
+    background: #fff;
+    border: 1px solid #e3e6eb;
+    border-radius: 5px;
+    cursor: pointer;
+    white-space: nowrap;
+}
+
+.colpicker-btn:hover:not(:disabled) {
+    background: #f4f6f9;
+    border-color: #c9dcf5;
+}
+
+.colpicker-btn:disabled {
+    color: #b3bac5;
+    background: #f4f6f9;
+    border-color: #e3e6eb;
+    cursor: not-allowed;
+}
+
+.colpicker-panel {
+    position: absolute;
+    top: calc(100% + 4px);
+    right: 0;
+    z-index: 50;
+    min-width: 240px;
+    background: #fff;
+    border: 1px solid #e3e6eb;
+    border-radius: 6px;
+    box-shadow: 0 6px 18px rgba(0, 0, 0, 0.12);
+    padding: 10px;
+}
+
+.colpicker-search {
+    width: 100%;
+    box-sizing: border-box;
+    padding: 6px 9px;
+    font-size: 13px;
+    color: #2c3e50;
+    border: 1px solid #e3e6eb;
+    border-radius: 5px;
+    margin-bottom: 8px;
+}
+
+.colpicker-search:focus {
+    outline: none;
+    border-color: #1c5fb8;
+}
+
+.colpicker-list {
+    max-height: 320px;
+    overflow: auto;
+}
+
+.colpicker-item {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 6px 8px;
+    font-size: 13px;
+    color: #3a4250;
+    border-radius: 4px;
+    cursor: pointer;
+}
+
+.colpicker-item:hover {
+    background: #f5f9ff;
+}
+
+.colpicker-item input {
+    cursor: pointer;
+}
+
+.colpicker-foot {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-top: 8px;
+    padding-top: 8px;
+    border-top: 1px solid #eef1f4;
+}
+
+.colpicker-link {
+    background: none;
+    border: none;
+    cursor: pointer;
+    font-size: 12px;
+    font-weight: 600;
+    color: #1c5fb8;
+    padding: 2px 4px;
+}
+
+.colpicker-link:hover {
+    text-decoration: underline;
+}

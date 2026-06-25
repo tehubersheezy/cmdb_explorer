@@ -16,9 +16,13 @@ under the **IBWorks** application menu.
 - **Class browse** — class-aware CI lists via the CMDB Instance API.
 - **Detail drawer** — attributes plus inbound/outbound relationships, click-through to walk
   the dependency graph.
-- **Jira / Confluence actions** — "Search in Jira" (built JQL) and "Search in Confluence" for
-  a CI. Base URLs are admin-configurable system properties (`ibworks.jira.base_url`,
-  `ibworks.confluence.base_url`).
+- **Jira / Confluence actions** — "Search in Jira" (JQL) and "Search in Confluence" (CQL) for
+  a CI. Admin-configurable system properties set the base URL and deployment type per tool:
+  `ibworks.jira.base_url` / `ibworks.jira.type`, `ibworks.confluence.base_url` /
+  `ibworks.confluence.type`. `*.type` is `dc` (Data Center/Server, the default) or `cloud`, and
+  selects the search-URL format — Jira `/secure/IssueNavigator.jspa?jqlQuery=` (dc) vs
+  `/issues/?jql=` (cloud); Confluence `/dosearchsite.action?cql=` (dc) vs `/search?cql=` (cloud).
+  A base URL left at the shipped `your-domain.atlassian.net` placeholder disables its button.
 
 ## Architecture
 
